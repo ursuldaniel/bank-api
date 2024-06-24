@@ -45,6 +45,15 @@ func CreatePostgresDB(db *sql.DB) error {
 		balance INT,
 		created_at DATE
 	);
+
+	CREATE TABLE IF NOT EXISTS transactions (
+		id SERIAL,
+		transaction_type TEXT,
+		from_id TEXT,
+		to_id TEXT,
+		amount INT,
+		transferred_at DATE
+	);
 	
 	CREATE TABLE IF NOT EXISTS tokens (
 		token TEXT
@@ -212,6 +221,225 @@ func (s *PostgresStorage) UpdatePassword(id int, model *models.UpdatePasswordReq
 	return nil
 }
 
+func (s *PostgresStorage) Deposit(id int, amount int) error {
+	if amount <= 0 {
+		return fmt.Errorf("invalid amount")
+	}
+
+	query := `SELECT balance FROM accounts WHERE id = $1`
+
+	rows, err := s.db.Query(query, id)
+	if err != nil {
+		return err
+	}
+
+	var balance int
+	for rows.Next() {
+		err := rows.Scan(
+			&balance,
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	balance += amount
+
+	query = `UPDATE accounts SET balance = $1 WHERE id = $2`
+
+	_, err = s.db.Exec(query, balance, id)
+	if err != nil {
+		return err
+	}
+
+	err = addTransaction(s.db, "Deposit", id, id, amount)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *PostgresStorage) Withdraw(id int, amount int) error {
+	if amount <= 0 {
+		return fmt.Errorf("invalid amount")
+	}
+
+	query := `SELECT balance FROM accounts WHERE id = $1`
+
+	rows, err := s.db.Query(query, id)
+	if err != nil {
+		return err
+	}
+
+	var balance int
+	for rows.Next() {
+		err := rows.Scan(
+			&balance,
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if balance < amount {
+		return fmt.Errorf("invalid amount")
+	}
+
+	balance -= amount
+
+	query = "UPDATE accounts SET balance = $1 WHERE id = $2"
+
+	_, err = s.db.Exec(query, balance, id)
+	if err != nil {
+		return err
+	}
+
+	err = addTransaction(s.db, "Withdraw", id, id, amount)
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
+func (s *PostgresStorage) Transfer(fromId int, toId int, amount int) error {
+	if amount <= 0 {
+		return fmt.Errorf("invalid amount")
+	}
+
+	rows, err := s.db.Query(`SELECT balance FROM accounts WHERE id = $1`, fromId)
+	if err != nil {
+		return err
+	}
+
+	var fromBalance int
+	for rows.Next() {
+		err := rows.Scan(
+			&fromBalance,
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	rows, err = s.db.Query(`SELECT balance FROM accounts WHERE id = $1`, toId)
+	if err != nil {
+		return err
+	}
+
+	var toBalance int
+	for rows.Next() {
+		err := rows.Scan(
+			&toBalance,
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if fromBalance-amount < 0 {
+		return fmt.Errorf("invalid amount")
+	}
+
+	fromBalance -= amount
+	toBalance += amount
+
+	_, err = s.db.Exec("UPDATE accounts SET balance = $1 WHERE id = $2", fromBalance, fromId)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.db.Exec("UPDATE accounts SET balance = $1 WHERE id = $2", toBalance, toId)
+	if err != nil {
+		return err
+	}
+
+	err = addTransaction(s.db, "Deposit", fromId, toId, amount)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *PostgresStorage) ListTransactions(id int) ([]*models.TransactionResponse, error) {
+	query := `SELECT * FROM transactions WHERE from_id = $1 OR to_id = $1`
+
+	rows, err := s.db.Query(query, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var fromId, toId int
+	transactions := []*models.TransactionResponse{}
+	for rows.Next() {
+		transaction := &models.TransactionResponse{}
+		err := rows.Scan(
+			&transaction.Id,
+			&transaction.TransactionType,
+			&fromId,
+			&toId,
+			&transaction.Amount,
+			&transaction.Transferred_at,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if fromId != toId {
+			transaction.FromId = fromId
+			transaction.ToId = toId
+		}
+
+		transactions = append(transactions, transaction)
+	}
+
+	return transactions, nil
+}
+
+func (s *PostgresStorage) GetTransaction(id int, transactionId int) (*models.TransactionResponse, error) {
+	query := `SELECT * FROM accounts WHERE id = $1`
+
+	rows, err := s.db.Query(query, transactionId)
+	if err != nil {
+		return nil, err
+	}
+
+	var fromId, toId int
+	transaction := &models.TransactionResponse{}
+	for rows.Next() {
+		err := rows.Scan(
+			&transaction.Id,
+			&transaction.TransactionType,
+			&fromId,
+			&toId,
+			&transaction.Amount,
+			&transaction.Transferred_at,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if fromId != id && toId != id {
+			return nil, fmt.Errorf("access denied")
+		}
+
+		if fromId != toId {
+			transaction.FromId = fromId
+			transaction.ToId = toId
+		}
+	}
+
+	return transaction, nil
+}
+
 func isDataUnique(db *sql.DB, login string) error {
 	count := 0
 
@@ -234,4 +462,17 @@ func hashPassword(password string) (string, error) {
 	}
 
 	return string(hashedPassword), nil
+}
+
+func addTransaction(db *sql.DB, transactionType string, from int, to int, amount int) error {
+	query := `INSERT INTO transactions
+	(transaction_type, from_id, to_id, amount, transferred_at)
+	VALUES ($1, $2, $3, $4, $5)`
+
+	_, err := db.Exec(query, transactionType, from, to, amount, time.Now())
+	if err != nil {
+		return err
+	}
+
+	return err
 }

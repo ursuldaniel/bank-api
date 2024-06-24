@@ -18,6 +18,11 @@ type Storage interface {
 	GetProfile(id int) (*models.ProfileResponse, error)
 	UpdateProfile(id int, model *models.UpdateProfileRequest) error
 	UpdatePassword(id int, model *models.UpdatePasswordRequest) error
+	Deposit(id int, amount int) error
+	Withdraw(id int, amount int) error
+	Transfer(fromId int, toId int, amount int) error
+	ListTransactions(id int) ([]*models.TransactionResponse, error)
+	GetTransaction(id int, transactionId int) (*models.TransactionResponse, error)
 }
 
 type Server struct {
@@ -44,11 +49,11 @@ func (s *Server) Run() error {
 	accounts.GET("/profile", s.handleGetProfile)
 	accounts.PUT("/profile", s.handleUpdateProfile)
 	accounts.PUT("/password", s.handleUpdatePassword)
-	accounts.POST("/deposit", nil)
-	accounts.POST("/withdraw", nil)
-	accounts.POST("/transfer/:id", nil)
-	accounts.GET("/transactions", nil)
-	accounts.GET("/transaction/:id", nil)
+	accounts.POST("/deposit", s.handleDeposit)
+	accounts.POST("/withdraw", s.handleWithdraw)
+	accounts.POST("/transfer/:id", s.handleTransfer)
+	accounts.GET("/transactions", s.handleListTransactions)
+	accounts.GET("/transaction/:id", s.handleGetTransaction)
 
 	return app.Run(s.listenAddr)
 }

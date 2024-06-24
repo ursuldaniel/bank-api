@@ -55,3 +55,12 @@ type UpdatePasswordRequest struct {
 	OldPasssword string `json:"old_password"`
 	NewPassword  string `json:"new_password"`
 }
+
+type TransactionResponse struct {
+	Id              int       `json:"id"`
+	TransactionType string    `json:"transaction_type"`
+	FromId          int       `json:"from_id,omitempty"`
+	ToId            int       `json:"to_id,omitempty"`
+	Amount          int       `json:"amount"`
+	Transferred_at  time.Time `json:"transferred_at"`
+}
