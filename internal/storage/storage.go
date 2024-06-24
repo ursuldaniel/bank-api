@@ -130,6 +130,88 @@ func (s *PostgresStorage) DisableToken(token string) error {
 	return nil
 }
 
+func (s *PostgresStorage) GetProfile(id int) (*models.ProfileResponse, error) {
+	query := `SELECT id, login, first_name, second_name, surname, email, balance, created_at FROM accounts WHERE id = $1`
+
+	rows, err := s.db.Query(query, id)
+	if err != nil {
+		return nil, err
+	}
+
+	model := &models.ProfileResponse{}
+	for rows.Next() {
+		err := rows.Scan(
+			&model.Id,
+			&model.Login,
+			&model.FirstName,
+			&model.SecondName,
+			&model.Surname,
+			&model.Email,
+			&model.Balance,
+			&model.CreatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return model, nil
+}
+
+func (s *PostgresStorage) UpdateProfile(id int, model *models.UpdateProfileRequest) error {
+	query := `UPDATE accounts SET login = $1, first_name = $2, second_name = $3, surname = $4, email = $5 WHERE id = $6`
+
+	if err := isDataUnique(s.db, model.Login); err != nil {
+		return err
+	}
+
+	_, err := s.db.Exec(query, model.Login, model.FirstName, model.SecondName, model.Surname, model.Email, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *PostgresStorage) UpdatePassword(id int, model *models.UpdatePasswordRequest) error {
+	query := `SELECT password FROM accounts WHERE id = $1`
+
+	rows, err := s.db.Query(query, id)
+	if err != nil {
+		return err
+	}
+
+	var password string
+	for rows.Next() {
+		err := rows.Scan(
+			&password,
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(password), []byte(model.OldPasssword)); err != nil {
+		return err
+	}
+
+	newHashedPassword, err := hashPassword(model.NewPassword)
+	if err != nil {
+		return err
+	}
+
+	query = `UPDATE accounts SET password = $1 WHERE id = $2`
+
+	_, err = s.db.Exec(query, newHashedPassword, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func isDataUnique(db *sql.DB, login string) error {
 	count := 0
 

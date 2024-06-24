@@ -15,6 +15,9 @@ type Storage interface {
 	Login(model *models.LoginRequest) (int, error)
 	IsTokenValid(token string) error
 	DisableToken(token string) error
+	GetProfile(id int) (*models.ProfileResponse, error)
+	UpdateProfile(id int, model *models.UpdateProfileRequest) error
+	UpdatePassword(id int, model *models.UpdatePasswordRequest) error
 }
 
 type Server struct {
@@ -38,8 +41,9 @@ func (s *Server) Run() error {
 	auth.POST("/logout", jwtAuth(s), s.handleAuthLogout)
 
 	accounts := app.Group("/accounts", jwtAuth(s))
-	accounts.POST("/profile", nil)
-	accounts.PUT("/profile", nil)
+	accounts.GET("/profile", s.handleGetProfile)
+	accounts.PUT("/profile", s.handleUpdateProfile)
+	accounts.PUT("/password", s.handleUpdatePassword)
 	accounts.POST("/deposit", nil)
 	accounts.POST("/withdraw", nil)
 	accounts.POST("/transfer/:id", nil)
