@@ -25,7 +25,7 @@ func (s *Server) handleAuthRegister(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.Response{Message: "Account successfully registered"})
+	c.JSON(http.StatusCreated, models.Response{Message: "Account successfully registered"})
 }
 
 func (s *Server) handleAuthLogin(c *gin.Context) {
@@ -96,7 +96,7 @@ func (s *Server) handleUpdateProfile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.Response{Message: "Account successfully updated"})
+	c.JSON(http.StatusCreated, models.Response{Message: "Account successfully updated"})
 }
 
 func (s *Server) handleUpdatePassword(c *gin.Context) {
@@ -118,7 +118,7 @@ func (s *Server) handleUpdatePassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.Response{Message: "Password successfully updated"})
+	c.JSON(http.StatusCreated, models.Response{Message: "Password successfully updated"})
 }
 
 func (s *Server) handleDeposit(c *gin.Context) {

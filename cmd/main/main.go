@@ -3,7 +3,7 @@ package main
 //swagger
 //validator DONE
 //errors
-//status codes
+//status codes DONE
 //docker
 //pgx DONE
 

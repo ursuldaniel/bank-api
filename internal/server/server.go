@@ -83,7 +83,7 @@ func jwtAuth(s *Server) gin.HandlerFunc {
 		}
 
 		if err := s.storage.IsTokenValid(tokenString[0]); err != nil {
-			c.JSON(http.StatusBadRequest, models.Response{Message: "Invalid authorization token"})
+			c.JSON(http.StatusUnauthorized, models.Response{Message: "Invalid authorization token"})
 			c.Abort()
 			return
 		}
@@ -106,7 +106,7 @@ func jwtAuth(s *Server) gin.HandlerFunc {
 
 		id, ok := claims["id"].(float64)
 		if !ok {
-			c.JSON(http.StatusForbidden, models.Response{Message: "Unauthorized access to the account"})
+			c.JSON(http.StatusUnauthorized, models.Response{Message: "Unauthorized access to the account"})
 			c.Abort()
 			return
 		}
