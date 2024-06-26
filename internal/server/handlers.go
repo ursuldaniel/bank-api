@@ -15,6 +15,11 @@ func (s *Server) handleAuthRegister(c *gin.Context) {
 		return
 	}
 
+	if err := s.validate.Struct(model); err != nil {
+		c.JSON(http.StatusBadRequest, models.Response{Message: err.Error()})
+		return
+	}
+
 	if err := s.storage.Register(model); err != nil {
 		c.JSON(http.StatusBadRequest, models.Response{Message: err.Error()})
 		return
@@ -26,6 +31,11 @@ func (s *Server) handleAuthRegister(c *gin.Context) {
 func (s *Server) handleAuthLogin(c *gin.Context) {
 	model := &models.LoginRequest{}
 	if err := c.ShouldBindBodyWithJSON(model); err != nil {
+		c.JSON(http.StatusBadRequest, models.Response{Message: err.Error()})
+		return
+	}
+
+	if err := s.validate.Struct(model); err != nil {
 		c.JSON(http.StatusBadRequest, models.Response{Message: err.Error()})
 		return
 	}
@@ -76,6 +86,11 @@ func (s *Server) handleUpdateProfile(c *gin.Context) {
 		return
 	}
 
+	if err := s.validate.Struct(model); err != nil {
+		c.JSON(http.StatusBadRequest, models.Response{Message: err.Error()})
+		return
+	}
+
 	if err := s.storage.UpdateProfile(id, model); err != nil {
 		c.JSON(http.StatusBadRequest, models.Response{Message: err.Error()})
 		return
@@ -89,6 +104,11 @@ func (s *Server) handleUpdatePassword(c *gin.Context) {
 
 	model := &models.UpdatePasswordRequest{}
 	if err := c.ShouldBindBodyWithJSON(model); err != nil {
+		c.JSON(http.StatusBadRequest, models.Response{Message: err.Error()})
+		return
+	}
+
+	if err := s.validate.Struct(model); err != nil {
 		c.JSON(http.StatusBadRequest, models.Response{Message: err.Error()})
 		return
 	}

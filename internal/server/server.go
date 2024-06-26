@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/go-playground/validator/v10"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/ursuldaniel/bank-api/internal/domain/models"
 )
 
@@ -28,12 +29,14 @@ type Storage interface {
 type Server struct {
 	listenAddr string
 	storage    Storage
+	validate   *validator.Validate
 }
 
 func NewServer(listenAddr string, storage Storage) *Server {
 	return &Server{
 		listenAddr: listenAddr,
 		storage:    storage,
+		validate:   validator.New(),
 	}
 }
 

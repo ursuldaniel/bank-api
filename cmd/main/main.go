@@ -1,11 +1,11 @@
 package main
 
 //swagger
-//validator
+//validator DONE
 //errors
 //status codes
 //docker
-//pgx
+//pgx DONE
 
 import (
 	"context"
