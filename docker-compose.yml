@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bankapi
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      LISTEN_ADDR: :8080
+      CONN_STR: postgres://postgres:postgres@localhost:5432/bankapi
+      SECRET_KEY: DAYSOFMADNESS
+
+volumes:
+  db-data:
