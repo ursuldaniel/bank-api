@@ -1,39 +1,40 @@
 package storage
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"time"
 
-	_ "github.com/lib/pq"
+	pgx "github.com/jackc/pgx/v5"
 	"github.com/ursuldaniel/bank-api/internal/domain/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type PostgresStorage struct {
-	db *sql.DB
+	conn *pgx.Conn
 }
 
-func NewPostgresStorage(connStr string) (*PostgresStorage, error) {
-	db, err := sql.Open("postgres", connStr)
+func NewPostgresStorage(ctx context.Context, connStr string) (*PostgresStorage, error) {
+	conn, err := pgx.Connect(ctx, connStr)
 	if err != nil {
 		return nil, err
 	}
+	// defer conn.Close(context.Background())
 
-	if err := db.Ping(); err != nil {
+	if err := conn.Ping(ctx); err != nil {
 		return nil, err
 	}
 
-	if err := CreatePostgresDB(db); err != nil {
+	if err := CreatePostgresDB(ctx, conn); err != nil {
 		return nil, err
 	}
 
 	return &PostgresStorage{
-		db: db,
+		conn: conn,
 	}, nil
 }
 
-func CreatePostgresDB(db *sql.DB) error {
+func CreatePostgresDB(ctx context.Context, conn *pgx.Conn) error {
 	query := `CREATE TABLE IF NOT EXISTS accounts (
 		id SERIAL,
 		login TEXT,
@@ -59,16 +60,12 @@ func CreatePostgresDB(db *sql.DB) error {
 		token TEXT
 	)`
 
-	_, err := db.Exec(query)
+	_, err := conn.Exec(ctx, query)
 	return err
 }
 
 func (s *PostgresStorage) Register(model *models.RegisterRequest) error {
-	query := `INSERT INTO accounts
-	(login, first_name, second_name, surname, email, password, balance, created_at)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-
-	if err := isDataUnique(s.db, model.Login); err != nil {
+	if err := isDataUnique(s.conn, model.Login); err != nil {
 		return err
 	}
 
@@ -77,7 +74,14 @@ func (s *PostgresStorage) Register(model *models.RegisterRequest) error {
 		return err
 	}
 
-	_, err = s.db.Exec(query, model.Login, model.FirstName, model.SecondName, model.Surname, model.Email, hashedPassword, 0, time.Now())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	query := `INSERT INTO accounts
+	(login, first_name, second_name, surname, email, password, balance, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+
+	_, err = s.conn.Exec(ctx, query, model.Login, model.FirstName, model.SecondName, model.Surname, model.Email, hashedPassword, 0, time.Now())
 	if err != nil {
 		return err
 	}
@@ -86,9 +90,11 @@ func (s *PostgresStorage) Register(model *models.RegisterRequest) error {
 }
 
 func (s *PostgresStorage) Login(model *models.LoginRequest) (int, error) {
-	query := `SELECT id, password FROM accounts WHERE login = $1`
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
-	rows, err := s.db.Query(query, model.Login)
+	query := `SELECT id, password FROM accounts WHERE login = $1`
+	rows, err := s.conn.Query(ctx, query, model.Login)
 	if err != nil {
 		return -1, err
 	}
@@ -114,10 +120,12 @@ func (s *PostgresStorage) Login(model *models.LoginRequest) (int, error) {
 }
 
 func (s *PostgresStorage) IsTokenValid(token string) error {
-	query := `SELECT COUNT(*) FROM tokens WHERE token = $1`
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
 	var count int
-	if err := s.db.QueryRow(query, token).Scan(&count); err != nil {
+	query := `SELECT COUNT(*) FROM tokens WHERE token = $1`
+	if err := s.conn.QueryRow(ctx, query, token).Scan(&count); err != nil {
 		return err
 	}
 
@@ -129,9 +137,11 @@ func (s *PostgresStorage) IsTokenValid(token string) error {
 }
 
 func (s *PostgresStorage) DisableToken(token string) error {
-	query := `INSERT INTO tokens (token) VALUES ($1)`
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
-	_, err := s.db.Exec(query, token)
+	query := `INSERT INTO tokens (token) VALUES ($1)`
+	_, err := s.conn.Exec(ctx, query, token)
 	if err != nil {
 		return err
 	}
@@ -140,9 +150,11 @@ func (s *PostgresStorage) DisableToken(token string) error {
 }
 
 func (s *PostgresStorage) GetProfile(id int) (*models.ProfileResponse, error) {
-	query := `SELECT id, login, first_name, second_name, surname, email, balance, created_at FROM accounts WHERE id = $1`
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
-	rows, err := s.db.Query(query, id)
+	query := `SELECT id, login, first_name, second_name, surname, email, balance, created_at FROM accounts WHERE id = $1`
+	rows, err := s.conn.Query(ctx, query, id)
 	if err != nil {
 		return nil, err
 	}
@@ -169,13 +181,15 @@ func (s *PostgresStorage) GetProfile(id int) (*models.ProfileResponse, error) {
 }
 
 func (s *PostgresStorage) UpdateProfile(id int, model *models.UpdateProfileRequest) error {
-	query := `UPDATE accounts SET login = $1, first_name = $2, second_name = $3, surname = $4, email = $5 WHERE id = $6`
-
-	if err := isDataUnique(s.db, model.Login); err != nil {
+	if err := isDataUnique(s.conn, model.Login); err != nil {
 		return err
 	}
 
-	_, err := s.db.Exec(query, model.Login, model.FirstName, model.SecondName, model.Surname, model.Email, id)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	query := `UPDATE accounts SET login = $1, first_name = $2, second_name = $3, surname = $4, email = $5 WHERE id = $6`
+	_, err := s.conn.Exec(ctx, query, model.Login, model.FirstName, model.SecondName, model.Surname, model.Email, id)
 	if err != nil {
 		return err
 	}
@@ -184,9 +198,11 @@ func (s *PostgresStorage) UpdateProfile(id int, model *models.UpdateProfileReque
 }
 
 func (s *PostgresStorage) UpdatePassword(id int, model *models.UpdatePasswordRequest) error {
-	query := `SELECT password FROM accounts WHERE id = $1`
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
-	rows, err := s.db.Query(query, id)
+	query := `SELECT password FROM accounts WHERE id = $1`
+	rows, err := s.conn.Query(ctx, query, id)
 	if err != nil {
 		return err
 	}
@@ -212,8 +228,7 @@ func (s *PostgresStorage) UpdatePassword(id int, model *models.UpdatePasswordReq
 	}
 
 	query = `UPDATE accounts SET password = $1 WHERE id = $2`
-
-	_, err = s.db.Exec(query, newHashedPassword, id)
+	_, err = s.conn.Exec(ctx, query, newHashedPassword, id)
 	if err != nil {
 		return err
 	}
@@ -226,9 +241,11 @@ func (s *PostgresStorage) Deposit(id int, amount int) error {
 		return fmt.Errorf("invalid amount")
 	}
 
-	query := `SELECT balance FROM accounts WHERE id = $1`
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
-	rows, err := s.db.Query(query, id)
+	query := `SELECT balance FROM accounts WHERE id = $1`
+	rows, err := s.conn.Query(ctx, query, id)
 	if err != nil {
 		return err
 	}
@@ -247,13 +264,12 @@ func (s *PostgresStorage) Deposit(id int, amount int) error {
 	balance += amount
 
 	query = `UPDATE accounts SET balance = $1 WHERE id = $2`
-
-	_, err = s.db.Exec(query, balance, id)
+	_, err = s.conn.Exec(ctx, query, balance, id)
 	if err != nil {
 		return err
 	}
 
-	err = addTransaction(s.db, "Deposit", id, id, amount)
+	err = addTransaction(s.conn, "Deposit", id, id, amount)
 	if err != nil {
 		return err
 	}
@@ -266,9 +282,11 @@ func (s *PostgresStorage) Withdraw(id int, amount int) error {
 		return fmt.Errorf("invalid amount")
 	}
 
-	query := `SELECT balance FROM accounts WHERE id = $1`
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
-	rows, err := s.db.Query(query, id)
+	query := `SELECT balance FROM accounts WHERE id = $1`
+	rows, err := s.conn.Query(ctx, query, id)
 	if err != nil {
 		return err
 	}
@@ -291,13 +309,12 @@ func (s *PostgresStorage) Withdraw(id int, amount int) error {
 	balance -= amount
 
 	query = "UPDATE accounts SET balance = $1 WHERE id = $2"
-
-	_, err = s.db.Exec(query, balance, id)
+	_, err = s.conn.Exec(ctx, query, balance, id)
 	if err != nil {
 		return err
 	}
 
-	err = addTransaction(s.db, "Withdraw", id, id, amount)
+	err = addTransaction(s.conn, "Withdraw", id, id, amount)
 	if err != nil {
 		return err
 	}
@@ -310,7 +327,11 @@ func (s *PostgresStorage) Transfer(fromId int, toId int, amount int) error {
 		return fmt.Errorf("invalid amount")
 	}
 
-	rows, err := s.db.Query(`SELECT balance FROM accounts WHERE id = $1`, fromId)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	query := `SELECT balance FROM accounts WHERE id = $1`
+	rows, err := s.conn.Query(ctx, query, fromId)
 	if err != nil {
 		return err
 	}
@@ -326,7 +347,8 @@ func (s *PostgresStorage) Transfer(fromId int, toId int, amount int) error {
 		}
 	}
 
-	rows, err = s.db.Query(`SELECT balance FROM accounts WHERE id = $1`, toId)
+	query = `SELECT balance FROM accounts WHERE id = $1`
+	rows, err = s.conn.Query(ctx, query, toId)
 	if err != nil {
 		return err
 	}
@@ -349,17 +371,19 @@ func (s *PostgresStorage) Transfer(fromId int, toId int, amount int) error {
 	fromBalance -= amount
 	toBalance += amount
 
-	_, err = s.db.Exec("UPDATE accounts SET balance = $1 WHERE id = $2", fromBalance, fromId)
+	query = `UPDATE accounts SET balance = $1 WHERE id = $2`
+	_, err = s.conn.Exec(ctx, query, fromBalance, fromId)
 	if err != nil {
 		return err
 	}
 
-	_, err = s.db.Exec("UPDATE accounts SET balance = $1 WHERE id = $2", toBalance, toId)
+	query = `UPDATE accounts SET balance = $1 WHERE id = $2`
+	_, err = s.conn.Exec(ctx, query, toBalance, toId)
 	if err != nil {
 		return err
 	}
 
-	err = addTransaction(s.db, "Deposit", fromId, toId, amount)
+	err = addTransaction(s.conn, "Deposit", fromId, toId, amount)
 	if err != nil {
 		return err
 	}
@@ -368,9 +392,11 @@ func (s *PostgresStorage) Transfer(fromId int, toId int, amount int) error {
 }
 
 func (s *PostgresStorage) ListTransactions(id int) ([]*models.TransactionResponse, error) {
-	query := `SELECT * FROM transactions WHERE from_id = $1 OR to_id = $1`
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
-	rows, err := s.db.Query(query, id)
+	query := `SELECT * FROM transactions WHERE from_id = $1 OR to_id = $1`
+	rows, err := s.conn.Query(ctx, query, id)
 	if err != nil {
 		return nil, err
 	}
@@ -404,9 +430,11 @@ func (s *PostgresStorage) ListTransactions(id int) ([]*models.TransactionRespons
 }
 
 func (s *PostgresStorage) GetTransaction(id int, transactionId int) (*models.TransactionResponse, error) {
-	query := `SELECT * FROM accounts WHERE id = $1`
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
-	rows, err := s.db.Query(query, transactionId)
+	query := `SELECT * FROM accounts WHERE id = $1`
+	rows, err := s.conn.Query(ctx, query, transactionId)
 	if err != nil {
 		return nil, err
 	}
@@ -440,10 +468,13 @@ func (s *PostgresStorage) GetTransaction(id int, transactionId int) (*models.Tra
 	return transaction, nil
 }
 
-func isDataUnique(db *sql.DB, login string) error {
-	count := 0
+func isDataUnique(conn *pgx.Conn, login string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
-	err := db.QueryRow("SELECT COUNT(*) FROM accounts WHERE login = $1", login).Scan(&count)
+	var count int
+	query := `SELECT COUNT(*) FROM accounts WHERE login = $1`
+	err := conn.QueryRow(ctx, query, login).Scan(&count)
 	if err != nil {
 		return err
 	}
@@ -464,12 +495,14 @@ func hashPassword(password string) (string, error) {
 	return string(hashedPassword), nil
 }
 
-func addTransaction(db *sql.DB, transactionType string, from int, to int, amount int) error {
+func addTransaction(conn *pgx.Conn, transactionType string, from int, to int, amount int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
 	query := `INSERT INTO transactions
 	(transaction_type, from_id, to_id, amount, transferred_at)
 	VALUES ($1, $2, $3, $4, $5)`
-
-	_, err := db.Exec(query, transactionType, from, to, amount, time.Now())
+	_, err := conn.Exec(ctx, query, transactionType, from, to, amount, time.Now())
 	if err != nil {
 		return err
 	}

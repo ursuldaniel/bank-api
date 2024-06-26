@@ -1,6 +1,14 @@
 package main
 
+//swagger
+//validator
+//errors
+//status codes
+//docker
+//pgx
+
 import (
+	"context"
 	"log"
 	"os"
 
@@ -20,7 +28,7 @@ func main() {
 		log.Fatal("missed server address")
 	}
 
-	storage, err := storage.NewPostgresStorage(os.Getenv("connStr"))
+	storage, err := storage.NewPostgresStorage(context.TODO(), os.Getenv("connStr"))
 	if err != nil {
 		log.Fatal(err)
 	}

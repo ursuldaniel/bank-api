@@ -2,18 +2,6 @@ package models
 
 import "time"
 
-// type Account struct {
-// 	Id         int
-// 	Login      string
-// 	FirstName  string
-// 	SecondName string
-// 	Surname    string
-// 	Email      string
-// 	Password   string
-// 	Balance    int
-// 	CreatedAt  time.Time
-// }
-
 type Response struct {
 	Message string `json:"message"`
 }
