@@ -27,6 +27,8 @@ func main() {
 		log.Fatal("missed server address")
 	}
 
+	log.Println(listenAddr)
+
 	storage, err := storage.NewPostgresStorage(context.TODO(), os.Getenv("CONN_STR"))
 	if err != nil {
 		log.Fatal(err)

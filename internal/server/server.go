@@ -43,6 +43,8 @@ func NewServer(listenAddr string, storage Storage) *Server {
 func (s *Server) Run() error {
 	app := gin.Default()
 
+	app.GET("/ping", handlePing)
+
 	auth := app.Group("/auth")
 	auth.POST("/register", s.handleAuthRegister)
 	auth.POST("/login", s.handleAuthLogin)
@@ -59,6 +61,10 @@ func (s *Server) Run() error {
 	accounts.GET("/transaction/:id", s.handleGetTransaction)
 
 	return app.Run(s.listenAddr)
+}
+
+func handlePing(c *gin.Context) {
+	c.JSON(http.StatusOK, models.Response{Message: "ok"})
 }
 
 func createToken(id int) (string, error) {

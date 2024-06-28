@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -14,6 +15,8 @@ func (s *Server) handleAuthRegister(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, models.Response{Message: err.Error()})
 		return
 	}
+
+	log.Println(model)
 
 	if err := s.validate.Struct(model); err != nil {
 		c.JSON(http.StatusBadRequest, models.Response{Message: err.Error()})

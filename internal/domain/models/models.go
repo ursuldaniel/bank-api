@@ -11,7 +11,7 @@ type RegisterRequest struct {
 	FirstName  string `json:"first_name" validate:"required"`
 	SecondName string `json:"second_name" validate:"required"`
 	Surname    string `json:"surname" validate:"required"`
-	Email      string `json:"email" validate:"required, email"`
+	Email      string `json:"email" validate:"required,email"`
 	Password   string `json:"password" validate:"required"`
 }
 
@@ -36,7 +36,7 @@ type UpdateProfileRequest struct {
 	FirstName  string `json:"first_name" validate:"required"`
 	SecondName string `json:"second_name" validate:"required"`
 	Surname    string `json:"surname" validate:"required"`
-	Email      string `json:"email" validate:"required, email"`
+	Email      string `json:"email" validate:"required,email"`
 }
 
 type UpdatePasswordRequest struct {
